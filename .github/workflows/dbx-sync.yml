@@ -1,0 +1,44 @@
+on:
+  workflow_call:
+    inputs:
+      databricks_repo_path:
+        description: "Path to the clone of the repo in the Databricks workspace. Defaults to /Repos/<repo_name/<repo_name>"
+        default: "/Repos/$(basename ${{ github.repository }})/$(basename ${{ github.repository }})"
+        type: string
+        required: false
+      environment:
+        required: true
+        type: string
+    secrets:
+      databricks_url:
+        description: "Databricks instance URL"
+        required: true
+      databricks_access_token:
+        description: "The Databricks access token required to communicate with the workspace in question"
+        required: true
+
+env:
+  DATABRICKS_REPO_PATH: ${{ inputs.databricks_repo_path }}
+
+jobs:
+  update-db-repo-job:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      # Checkout the latest changes from the repo
+      - uses: actions/checkout@v4
+
+      - name: Setting up auth with DBX workspace
+        run: |
+          echo '[DEFAULT]
+              host = ${{secrets.databricks_url}}
+              token = ${{secrets.databricks_access_token}}' > ~/.databrickscfg
+
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      
+      # Update with the latest changes in the notebooks repo using the Databricks Repos API
+      - name: Update repo in Databricks
+        run: |
+          databricks repos update ${{ env.DATABRICKS_REPO_PATH }} --branch=${{ github.ref_name }}
