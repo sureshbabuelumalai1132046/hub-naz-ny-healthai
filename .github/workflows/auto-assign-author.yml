@@ -1,4 +1,4 @@
-name: 'Auto Assign Author'
+name: 'Auto-Assign-Author'
 
 on:
   workflow_call:
