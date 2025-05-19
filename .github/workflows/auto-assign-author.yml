@@ -1,0 +1,10 @@
+name: 'Auto Assign Author'
+
+on:
+  workflow_call:
+
+jobs:
+  assign-author:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: toshimaru/auto-author-assign@540688a3f286ff2625e705bb6b5ed6f9def14754 #https://github.com/toshimaru/auto-author-assign

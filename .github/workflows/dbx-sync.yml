@@ -1,3 +1,4 @@
+name: DBX-Repo-Sync
 on:
   workflow_call:
     inputs:
