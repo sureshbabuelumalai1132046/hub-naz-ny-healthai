@@ -29,9 +29,30 @@ Please list all known issues that could not be resolved in this PR. Then, create
 - Ticket#<Ticket_#_Here> - Issue description here
 - Ticket#<Ticket_#_Here> - Another issue description here
 -->
+## Type of Change
+
+<!-- Mark with an `x` all the checkboxes that apply (like `[x]`) -->
+
+- [ ] 📚 Examples / docs / tutorials / dependencies update
+- [ ] 🔧 Bug fix (non-breaking change which fixes an issue)
+- [ ] 🥂 Improvement (non-breaking change which improves an existing feature)
+- [ ] 🚀 New feature (non-breaking change which adds functionality)
+- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to change)
+- [ ] 🔐 Security fix
 
 ## Checklist
 
 - [ ] I have added the necessary unit tests
 - [ ] I have updated the ticket status relating to this PR on Azure DevOps
 - [ ] I have created PBIs for known issues
+- [ ] I've updated the code style.
+- [ ] I've written tests for all new methods and classes that I created.
+- [ ] I've written the docstring in Google format for all the methods and classes that I used.
+- [ ] I have performed a self-review of my own code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have made corresponding changes to the documentation
+- [ ] My changes generate no new warnings
+- [ ] I have added tests that prove my fix is effective or that my feature works
+- [ ] New and existing unit tests pass locally with my changes
+- [ ] Any dependent changes have been merged and published in downstream modules
+- [ ] I have checked my code and corrected any misspellings
