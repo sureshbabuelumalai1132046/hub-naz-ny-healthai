@@ -1,0 +1,14 @@
+name: 'Strip _dev from file'
+description: 'This action is designed to strip any _dev from the catalog name within Unity Catalog. _dev will not be replaced by anything.'
+inputs:
+  path_to_file: 
+    description: 'The full file path of the .sql file to be processed'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Execute
+      run: |
+        sed -i "s/_dev\./\./gm" ${{ inputs.path_to_file }}
+        echo Changed file ${{ inputs.path_to_file }}.
+      shell: bash

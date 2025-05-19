@@ -1,0 +1,62 @@
+name: Databricks Workflow CI
+on:
+  workflow_call:
+    inputs:
+      workflow_definition_location:
+        description: "Path to the workflow(s) that need to be deployed. This will only deploy file(s) that have been changed. EX:'databricks/orchestration/*.json'"
+        type: string
+        required: true
+      github_environment:
+        description: "The GitHub environment that will be used to set secret values."
+        type: string
+        required: true
+      matrix_max_parallel:
+        description: "Max number of jobs that can deploy in parallel. Defaults to 100."
+        type: number
+        default: 100
+        required: false
+    secrets:
+      GITHUB_ACCESS_TOKEN:
+        description: Github token for using checkout
+        required: true
+jobs:
+  setup-matrix:
+    name: Setup Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_ACCESS_TOKEN }}
+          fetch-depth: 0
+      - name: Generate Matrix
+        id: set-matrix
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/changed-file-matrix@changed-file-matrix-v1.1.0
+        with:
+          file-pattern: ${{ inputs.workflow_definition_location }}
+  dbx-workflow-ci:
+    name: Databricks Workflow CI
+    needs: setup-matrix
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github_environment }}
+    env:
+      PYTHON_VERSION: 3.8
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.matrix_max_parallel }}
+      matrix: ${{fromJson(needs.setup-matrix.outputs.matrix)}}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{secrets.GITHUB_ACCESS_TOKEN}}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Check for Timeout
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-job-check-for-timeout@dbx-job-check-for-timeout-v1.0.0
+        with:
+          job_path: ${{ matrix.changed_file }}
+          setup_python: false

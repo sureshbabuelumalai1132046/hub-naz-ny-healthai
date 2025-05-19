@@ -1,0 +1,38 @@
+name: 'Run SQL on Databricks'
+description: 'Runs all python audit scripts related to GitHub Repository information'
+inputs:
+  databricks-hostname:
+    description: 'The Databricks url or hostname where the SQL Warehouse exists'
+    required: true
+  sql-warehouse-id:
+    description: 'The Databricks SQL Warehouse ID to run the SQL on'
+    required: true
+  databricks-token:
+    description: 'The Databricks Token for Authentication'
+    required: true
+  sql-file-path:
+    description: 'SQL file containing code to run'
+    required: true
+  dry-run:
+    description: 'Run the action without executing the SQL on Databricks'
+    required: false
+    default: false
+
+runs:
+  using: 'composite'
+  steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install Dependencies
+        run: 
+          pip install -r $GITHUB_ACTION_PATH/requirements.txt
+        shell: bash
+      - name: Run SQL on Databricks
+        run: |
+          if [[ "${{ inputs.dry-run }}" == "true" ]] ; then
+            python $GITHUB_ACTION_PATH/run-sql.py -n ${{inputs.databricks-hostname}} -w ${{inputs.sql-warehouse-id}} -t ${{inputs.databricks-token}} -f ${{inputs.sql-file-path}} --dry-run
+          else
+            python $GITHUB_ACTION_PATH/run-sql.py -n ${{inputs.databricks-hostname}} -w ${{inputs.sql-warehouse-id}} -t ${{inputs.databricks-token}} -f ${{inputs.sql-file-path}}
+          fi
+        shell: bash
