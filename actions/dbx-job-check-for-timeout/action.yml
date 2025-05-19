@@ -1,0 +1,24 @@
+name: 'Check for Timeout in Databricks Job'
+description: 'Parses through a Databricks Job Config Json and throws an error if a timeout is not found'
+inputs:
+  job_path:
+    description: 'Databricks job config json path'
+    type: string
+    required: true
+  setup_python:
+    description: 'Setup Python'
+    type: boolean
+    required: false
+    default: true
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Setup Python'
+      if: "${{inputs.setup_python == 'true'}}"
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: 'Check Job for Timeout'
+      run: |
+        python $GITHUB_ACTION_PATH/check_for_timeout.py --job-path ${{inputs.job_path}}
+      shell: bash

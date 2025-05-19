@@ -1,0 +1,129 @@
+name: 'Generate Matrix of Changed Files'
+description: 'This Action generates a matrix of changed files on a commit or Pull Request'
+inputs:
+  file-pattern:
+    description: 'The pattern of files to look for changes in. eg: **/*.sql'
+    required: true
+  run-docker-build-matrix:
+    description: "Boolean value to determine if Docker Build Matrix step should run"
+    default: 'false'
+    required: false
+outputs:
+  matrix:
+    description: "Generated Matrix of Changed Files"
+    value: ${{ steps.set-matrix.outputs.matrix }}
+  dir-matrix:
+    description: "Generated Matrix of Directories with Changes"
+    value: ${{ steps.set-dir-matrix.outputs.matrix }}
+  delete-matrix:
+    description: "Generated Matrix of Deleted Files"
+    value: ${{ steps.set-delete-matrix.outputs.matrix }}
+  docker-matrix:
+    description: "Generated Matrix for Docker Build"
+    value: ${{ steps.docker-matrix.outputs.matrix }}
+
+runs:
+  using: 'composite'
+  steps:
+      - name: Get changed files (ACMR)
+        id: files
+        uses: tj-actions/changed-files@74b06cafc9658d2a91cc5ceb920fd6b5a5649051 #v35
+        with:
+          files: |
+            ${{ inputs.file-pattern }}
+      - name: List all changed files
+        id: set-matrix
+        run: |
+          changed_file=''
+          for file in ${{ steps.files.outputs.all_changed_files }}; do
+            parent_dir=("$file")
+            echo "parent_dir = $parent_dir"
+            if [[ -z $changed_file ]]; then
+              changed_file="{\"changed_file\":\"$parent_dir\"}"
+            else
+              changed_file="$changed_file, {\"changed_file\":\"$parent_dir\"}"
+            fi
+          done
+          changed_file="{\"include\":[$changed_file]}"
+          echo "$changed_file"
+          echo "matrix=$changed_file" >> $GITHUB_OUTPUT
+        shell: bash
+      - name: Get Directories with Changes (ACMR)
+        id: directories
+        uses: tj-actions/changed-files@74b06cafc9658d2a91cc5ceb920fd6b5a5649051 #v35
+        with:
+          dir_names: true
+          files: |
+            ${{ inputs.file-pattern }}
+      - name: List all Directories with Changes
+        id: set-dir-matrix
+        run: |
+          changed_dir=''
+          for file in ${{ steps.directories.outputs.all_changed_files }}; do
+            parent_dir=("$file")
+            echo "parent_dir = $parent_dir"
+            if [[ -z $changed_dir ]]; then
+              changed_dir="{\"changed_dir\":\"$parent_dir\"}"
+            else
+              changed_dir="$changed_dir, {\"changed_dir\":\"$parent_dir\"}"
+            fi
+          done
+          changed_dir="{\"include\":[$changed_dir]}"
+          echo "$changed_dir"
+          echo "matrix=$changed_dir" >> $GITHUB_OUTPUT
+        shell: bash
+      - name: List all deleted files
+        id: set-delete-matrix
+        run: |
+          deleted_file=''
+          for file in ${{ steps.files.outputs.deleted_files  }}; do
+            parent_dir=("$file")
+            echo "parent_dir = $parent_dir"
+            if [[ -z $deleted_file ]]; then
+              deleted_file="{\"deleted_file\":\"$parent_dir\"}"
+            else
+              deleted_file="$deleted_file, {\"deleted_file\":\"$parent_dir\"}"
+            fi
+          done
+          deleted_file="{\"include\":[$deleted_file]}"
+          echo "$deleted_file"
+          echo "matrix=$deleted_file" >> $GITHUB_OUTPUT
+        shell: bash
+      - name: Create Docker Build matrix
+        if: ${{ inputs.run-docker-build-matrix == 'true' }}
+        shell: bash
+        id: docker-matrix
+        run: |
+          dir_list=$(echo '${{ steps.set-dir-matrix.outputs.matrix }}' | jq -r '.include[].changed_dir')
+          docker_matrix=""
+          for dir in $dir_list; do
+            echo "Checking $dir"
+            current_dir="$dir"
+            dockerfile_found=false
+            while [ "$current_dir" != "/" ] && [ "$current_dir" != "." ]; do
+              if [ -f "$current_dir/dockerfile" ] || [ -f "$current_dir/Dockerfile" ]; then
+                echo "Found Dockerfile in $current_dir"
+                docker_matrix="${docker_matrix}{\"dir\": \"$current_dir\"},"
+                dockerfile_found=true
+                break
+              fi
+              echo "No Dockerfile in $current_dir, checking parent directory"
+              current_dir=$(dirname "$current_dir")
+            done
+            if [ "$dockerfile_found" = false ]; then
+              echo "No Dockerfile found in $dir or its parent directories"
+            fi
+          done
+          # check to make sure matrix is not empty
+          docker_matrix="[${docker_matrix%?}]"
+          if [ "$docker_matrix" == "[]" ]; then
+            echo "Did not find any Dockerfiles in paths"
+            docker_matrix="[{\"dir\": \"none\"}]"
+          fi
+          # remove root entries
+          docker_matrix=$(echo "$docker_matrix" | jq 'map(select(.release != "root"))')
+          # remove duplicates
+          docker_matrix=$(echo $docker_matrix | jq -c 'unique')
+          docker_matrix="{\"include\":$docker_matrix}"
+          echo "$docker_matrix"
+          echo "matrix=$docker_matrix" >> $GITHUB_OUTPUT

@@ -1,0 +1,22 @@
+name: 'Prepend EXPLAIN to file'
+description: 'This action is designed to add EXPLAIN to the beginning of a file. The contents of the file will be otherwise unaffected'
+inputs:
+  path_to_file: 
+    description: 'The full file path of the .sql file to be processed'
+    required: true
+  setup_python:
+    description: 'Setup Python'
+    type: boolean
+    default: true
+runs:
+  using: "composite"
+  steps:
+    - name: 'Setup Python'
+      if: "${{inputs.setup_python == 'true'}}"
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Execute
+      run: |
+        python $GITHUB_ACTION_PATH/prepend_explain.py --path_to_file ${{ inputs.path_to_file }}
+      shell: bash

@@ -1,0 +1,31 @@
+name: 'Check SQL File'
+description: 'This Action looks at a DDL SQL file and ensure it meets Data Standards.'
+inputs:
+  sql-file: 
+    description: 'The file path of the SQL file to be checked.'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Check Filename Format
+      run: |
+        filename=$(basename "${{inputs.sql-file}}")
+        echo "Checking to make sure $filename matches the expected format {schema}_{table}_{change}.sql"
+        if [[ ! "$filename" =~ ^[a-zA-Z0-9_]+\_[a-zA-Z0-9_]+\_[a-zA-Z0-9_]+\.sql$ ]]; then
+          echo "ERROR: $filename does not match the expected format {schema}_{table}_{change}.sql"
+          exit 1
+        else
+          echo "SUCCESS: $filename matches the expected format {schema}_{table}_{change}.sql"
+        fi
+      shell: bash
+    - name: Verify files are new
+      run: |
+        echo "Checking to make sure ${{inputs.sql-file}} is a new file"
+        git log --name-status --oneline -- ${{inputs.sql-file}}
+        if [[ ! -z $(git log --name-status --diff-filter=A -- ${{inputs.sql-file}}) ]]; then
+          echo "SUCCESS: ${{inputs.sql-file}} is a new file"
+        else
+          echo "ERROR: ${{inputs.sql-file}} is not a new file"
+          exit 1
+        fi
+      shell: bash
