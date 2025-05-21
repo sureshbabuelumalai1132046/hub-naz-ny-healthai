@@ -94,23 +94,25 @@ def run_sql_on_dbx(host,warehouse_id,access_token,script):
         # If it is a create statement, check if the catalog name ends with _dev
         # If it is a create statement, check the catalog or schema pattern
         print(f"------CHECKING FOR CREATE STATEMENT-----\n")
-        if statement.strip().upper().startswith(("CREATE")):
-            match = re.search(r'\b(\w+\.\w+(?:\.\w+)?)\b', statement)
-            if match:
-                parts = match.group(1).split('.')
-                if len(parts) == 3:
-                    catalog = parts[0]
-                    if not catalog.lower().endswith('_dev'):
-                        print("ERROR: Only those tables, whose catalog names conclude with '_dev', from DEV Catalogs, are permitted in the CREATE statements")
-                        exit(1)
-                elif len(parts) == 2:
-                    print("INFO: Detected Hive Metastore format (schema.table) — skipping catalog validation.")
-                else:
-                    print("ERROR: Unable to parse object name. Please ensure it's in schema.table or catalog.schema.table format.")
-                    exit(1)
-            else:
-                print("ERROR: No valid object identifier (schema.table or catalog.schema.table) found in CREATE statement.")
+if statement.strip().upper().startswith("CREATE"):
+    match = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([`"]?[a-zA-Z0-9_]+[`"]?(?:\.[`"]?[a-zA-Z0-9_]+[`"]?){1,2})', statement, re.IGNORECASE)
+    if match:
+        full_name = match.group(1).replace("`", "").replace('"', '')
+        parts = full_name.split('.')
+        if len(parts) == 3:
+            catalog = parts[0]
+            if not catalog.lower().endswith('_dev'):
+                print("ERROR: Only those tables, whose catalog names conclude with '_dev', from DEV Catalogs, are permitted in the CREATE statements")
                 exit(1)
+        elif len(parts) == 2:
+            print("INFO: Detected Hive Metastore format (schema.table) — skipping catalog validation.")
+        else:
+            print("ERROR: Invalid object name. Use schema.table or catalog.schema.table format.")
+            exit(1)
+    else:
+        print("ERROR: No valid object identifier (schema.table or catalog.schema.table) found in CREATE statement.")
+        exit(1)
+        
         print(f"------RUNNING SQL STATMENT-----\n {statement}")
         if statement.strip().upper().startswith(("CREATE", "ALTER", "DROP", "TRUNCATE", "COMMENT", "DELETE", "UPDATE", "INSERT")):
             try:
