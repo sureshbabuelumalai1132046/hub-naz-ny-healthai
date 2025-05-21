@@ -92,17 +92,25 @@ def run_sql_on_dbx(host,warehouse_id,access_token,script):
     sql_statements = split_sql_statements(script)
     for statement in sql_statements:
         # If it is a create statement, check if the catalog name ends with _dev
+        # If it is a create statement, check the catalog or schema pattern
         print(f"------CHECKING FOR CREATE STATEMENT-----\n")
         if statement.strip().upper().startswith(("CREATE")):
-                match = re.search(r'\b\w+\.\w+\.\w+\b', statement)
-                text_before_first_period = match.group().split('.')[0] 
-                try:
-                    if not text_before_first_period.lower().endswith('_dev'):  
+            match = re.search(r'\b(\w+\.\w+(?:\.\w+)?)\b', statement)
+            if match:
+                parts = match.group(1).split('.')
+                if len(parts) == 3:
+                    catalog = parts[0]
+                    if not catalog.lower().endswith('_dev'):
                         print("ERROR: Only those tables, whose catalog names conclude with '_dev', from DEV Catalogs, are permitted in the CREATE statements")
                         exit(1)
-                except AttributeError:
-                    print(f"ERROR: The attempt is to create the object: {match} which is in a NON-DEV catalog. Please use a DEV catalog for CREATE statements")
+                elif len(parts) == 2:
+                    print("INFO: Detected Hive Metastore format (schema.table) — skipping catalog validation.")
+                else:
+                    print("ERROR: Unable to parse object name. Please ensure it's in schema.table or catalog.schema.table format.")
                     exit(1)
+            else:
+                print("ERROR: No valid object identifier (schema.table or catalog.schema.table) found in CREATE statement.")
+                exit(1)
         print(f"------RUNNING SQL STATMENT-----\n {statement}")
         if statement.strip().upper().startswith(("CREATE", "ALTER", "DROP", "TRUNCATE", "COMMENT", "DELETE", "UPDATE", "INSERT")):
             try:
