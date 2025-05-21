@@ -72,7 +72,7 @@ def clean_dbx_hostname(hostname):
         hostname = hostname.split(".net")[0] + ".net"
     return hostname
 
-def run_sql_on_dbx(host,warehouse_id,access_token,script):
+def run_sql_on_dbx(host, warehouse_id, access_token, script):
     """
     Connects to Databricks API and executes the SQL script on the specified Databricks SQL warehouse.
 
@@ -82,67 +82,65 @@ def run_sql_on_dbx(host,warehouse_id,access_token,script):
     :param script: The SQL script to be executed.
     """
     connection = sql.connect(
-    server_hostname=host,
-    http_path=f"/sql/1.0/warehouses/{warehouse_id}",
-    access_token=access_token)
+        server_hostname=host,
+        http_path=f"/sql/1.0/warehouses/{warehouse_id}",
+        access_token=access_token)
 
     cursor = connection.cursor()
 
     # Split the script into individual statements and remove comments
     sql_statements = split_sql_statements(script)
     for statement in sql_statements:
-        # If it is a create statement, check if the catalog name ends with _dev
-        # If it is a create statement, check the catalog or schema pattern
         print(f"------CHECKING FOR CREATE STATEMENT-----\n")
-if statement.strip().upper().startswith("CREATE"):
-    match = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([`"]?[a-zA-Z0-9_]+[`"]?(?:\.[`"]?[a-zA-Z0-9_]+[`"]?){1,2})', statement, re.IGNORECASE)
-    if match:
-        full_name = match.group(1).replace("`", "").replace('"', '')
-        parts = full_name.split('.')
-        if len(parts) == 3:
-            catalog = parts[0]
-            if not catalog.lower().endswith('_dev'):
-                print("ERROR: Only those tables, whose catalog names conclude with '_dev', from DEV Catalogs, are permitted in the CREATE statements")
-                exit(1)
-        elif len(parts) == 2:
-            print("INFO: Detected Hive Metastore format (schema.table) — skipping catalog validation.")
-        else:
-            print("ERROR: Invalid object name. Use schema.table or catalog.schema.table format.")
-            exit(1)
-    else:
-        print("ERROR: No valid object identifier (schema.table or catalog.schema.table) found in CREATE statement.")
-        exit(1)
-        
-        print(f"------RUNNING SQL STATMENT-----\n {statement}")
-        if statement.strip().upper().startswith(("CREATE", "ALTER", "DROP", "TRUNCATE", "COMMENT", "DELETE", "UPDATE", "INSERT")):
-            try:
-                if not args.dry_run:
-                    cursor.execute(statement)
+        if statement.strip().upper().startswith("CREATE"):
+            match = re.search(r'CREATE\s+(?:OR\s+REPLACE\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([`"]?[a-zA-Z0-9_]+[`"]?(?:\.[`"]?[a-zA-Z0-9_]+[`"]?){1,2})', statement, re.IGNORECASE)
+            if match:
+                full_name = match.group(1).replace("`", "").replace('"', '')
+                parts = full_name.split('.')
+                if len(parts) == 3:
+                    catalog = parts[0]
+                    if not catalog.lower().endswith('_dev'):
+                        print("ERROR: Only those tables, whose catalog names conclude with '_dev', from DEV Catalogs, are permitted in the CREATE statements")
+                        exit(1)
+                elif len(parts) == 2:
+                    print("INFO: Detected Hive Metastore format (schema.table) — skipping catalog validation.")
                 else:
-                    print("DRY RUN DETECTED: NOT RUNNING STATEMENT ON DATABRICKS")
-            except sql.Error as e:
-                print('ERROR:', e.args[0])
-                exit(1)
-            else:
-                print(f"{statement.strip().split(' ')[0].upper()} SUCCESS\n")
-        elif statement.strip().upper().startswith(("EXPLAIN")):
-            try:
-                ls = cursor.execute(statement).fetchall()
-                df = pd.DataFrame(ls, columns = ["plan"])
-                output_message = ""
-                for row in range(df["plan"].count()):
-                    output_message = output_message + str(df["plan"].loc[row])
-                if "error occurred during query planning" in output_message.lower():
-                    print('ERROR:', output_message)
+                    print("ERROR: Invalid object name. Use schema.table or catalog.schema.table format.")
                     exit(1)
-            except Exception as e:
-                print(f"An unexpected error has occurred: {e}")
-                exit(1)
             else:
-                print("EXPLAIN successfully ran")
-        else:
-            print("ERROR: Statement type not supported")
-            exit(1)
+                print("ERROR: No valid object identifier (schema.table or catalog.schema.table) found in CREATE statement.")
+                exit(1)
+        
+            print(f"------RUNNING SQL STATEMENT-----\n {statement}")
+            if statement.strip().upper().startswith(("CREATE", "ALTER", "DROP", "TRUNCATE", "COMMENT", "DELETE", "UPDATE", "INSERT")):
+                try:
+                    if not args.dry_run:
+                        cursor.execute(statement)
+                    else:
+                        print("DRY RUN DETECTED: NOT RUNNING STATEMENT ON DATABRICKS")
+                except sql.Error as e:
+                    print('ERROR:', e.args[0])
+                    exit(1)
+                else:
+                    print(f"{statement.strip().split(' ')[0].upper()} SUCCESS\n")
+            elif statement.strip().upper().startswith(("EXPLAIN")):
+                try:
+                    ls = cursor.execute(statement).fetchall()
+                    df = pd.DataFrame(ls, columns=["plan"])
+                    output_message = ""
+                    for row in range(df["plan"].count()):
+                        output_message = output_message + str(df["plan"].loc[row])
+                    if "error occurred during query planning" in output_message.lower():
+                        print('ERROR:', output_message)
+                        exit(1)
+                except Exception as e:
+                    print(f"An unexpected error has occurred: {e}")
+                    exit(1)
+                else:
+                    print("EXPLAIN successfully ran")
+            else:
+                print("ERROR: Statement type not supported")
+                exit(1)
 
     cursor.close()
     connection.close()
@@ -150,11 +148,11 @@ if statement.strip().upper().startswith("CREATE"):
 ## Main
 parser = argparse.ArgumentParser(
                 prog='Run SQL on Databricks',
-                description='This script take an SQL file and runs it on provided Databricks SQL Warehouse')
+                description='This script takes an SQL file and runs it on the provided Databricks SQL Warehouse')
 parser.add_argument("-n", "--databricks-hostname", required=True, help="The Databricks Hostname to run SQL on")
 parser.add_argument("-w", "--sql-warehouse-id", required=True, help="The Databricks SQL Warehouse HTTP path")
 parser.add_argument("-t", "--databricks-token", required=True, help="Databricks Token for authentication")
-parser.add_argument("-f", "--file-path", required=True, help="File path to SQL to be ran")
+parser.add_argument("-f", "--file-path", required=True, help="File path to SQL to be run")
 parser.add_argument("--dry-run", action='store_true', help="Initiate a dry run of the script. This will do everything except run the script on Databricks.")
 
 args = parser.parse_args()
@@ -162,8 +160,8 @@ args = parser.parse_args()
 with open(args.file_path, 'r') as sql_file:
     script = sql_file.read()
 
-# Clean the databricks hostname if needed
+# Clean the Databricks hostname if needed
 dbx_hostname = clean_dbx_hostname(args.databricks_hostname)
 
 # Run the SQL script
-run_sql_on_dbx(dbx_hostname,args.sql_warehouse_id,args.databricks_token,script)
+run_sql_on_dbx(dbx_hostname, args.sql_warehouse_id, args.databricks_token, script)
