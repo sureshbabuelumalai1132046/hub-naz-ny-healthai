@@ -1,0 +1,232 @@
+{
+  "name": "fake-product",
+  "email_notifications": {
+    "no_alert_for_skipped_runs": false
+  },
+  "webhook_notifications": {},
+  "timeout_seconds": 0,
+  "schedule": {
+    "quartz_cron_expression": "0 0 0 * * ?",
+    "timezone_id": "America/Chicago",
+    "pause_status": "PAUSED"
+  },
+  "max_concurrent_runs": 1,
+  "tasks": [
+    {
+      "task_key": "pps_prod_bronze",
+      "notebook_task": {
+        "notebook_path": "data/procedures/generic/oracle_to_bronze",
+        "base_parameters": {
+          "parent_run_id": "{{parent_run_id}}",
+          "job_id": "{{job_id}}",
+          "run_id": "{{run_id}}",
+          "subject_area": "product/upc",
+          "config_file": "pps_prod"
+        },
+        "source": "GIT"
+      },
+      "job_cluster_key": "product",
+      "libraries": [
+        {
+          "maven": {
+            "coordinates": "com.oracle.database.jdbc:ojdbc6:11.2.0.4"
+          }
+        }
+      ],
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "notification_settings": {
+        "no_alert_for_skipped_runs": false,
+        "no_alert_for_canceled_runs": false,
+        "alert_on_last_attempt": false
+      }
+    },
+    {
+      "task_key": "pps_prod_silver",
+      "notebook_task": {
+        "notebook_path": "data/procedures/generic/bronze_to_silver",
+        "base_parameters": {
+          "parent_run_id": "{{parent_run_id}}",
+          "job_id": "{{job_id}}",
+          "run_id": "{{run_id}}",
+          "subject_area": "product/upc",
+          "config_file": "pps_prod"
+        },
+        "source": "GIT"
+      },
+      "job_cluster_key": "silver",
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "notification_settings": {
+        "no_alert_for_skipped_runs": false,
+        "no_alert_for_canceled_runs": false,
+        "alert_on_last_attempt": false
+      }
+    },
+    {
+      "task_key": "product_gold",
+      "notebook_task": {
+        "notebook_path": "data/procedures/generic/bronze_to_silver",
+        "base_parameters": {
+          "parent_run_id": "{{parent_run_id}}",
+          "job_id": "{{job_id}}",
+          "run_id": "{{run_id}}",
+          "subject_area": "product/upc",
+          "config_file": "pps_prod"
+        },
+        "source": "GIT"
+      },
+      "job_cluster_key": "gold",
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "notification_settings": {
+        "no_alert_for_skipped_runs": false,
+        "no_alert_for_canceled_runs": false,
+        "alert_on_last_attempt": false
+      }
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "product",
+      "new_cluster": {
+        "cluster_name": "",
+        "spark_version": "12.2.x-scala2.12",
+        "spark_conf": {
+          "spark.databricks.delta.preview.enabled": "true"
+        },
+        "azure_attributes": {
+          "first_on_demand": 1,
+          "availability": "ON_DEMAND_AZURE",
+          "spot_bid_max_price": -1
+        },
+        "node_type_id": "Standard_D16ds_v5",
+        "driver_node_type_id": "Standard_D32s_v5",
+        "custom_tags": {
+          "PolicyName": "Job Compute"
+        },
+        "cluster_log_conf": {
+          "dbfs": {
+            "destination": "dbfs:/mnt/cluster-logs-data"
+          }
+        },
+        "enable_elastic_disk": true,
+        "init_scripts": [
+          {
+            "dbfs": {
+              "destination": "dbfs:/data/init-scripts/datajob-monitoring.sh"
+            }
+          },
+          {
+            "dbfs": {
+              "destination": "dbfs:/datat/init-scripts/library-install.sh"
+            }
+          }
+        ],
+        "policy_id": "Job Compute",
+        "data_security_mode": "SINGLE_USER",
+        "runtime_engine": "PHOTON",
+        "autoscale": {
+          "min_workers": 2,
+          "max_workers": 25
+        }
+      }
+    },
+    {
+      "job_cluster_key": "silver",
+      "new_cluster": {
+        "cluster_name": "",
+        "spark_version": "12.2.x-scala2.12",
+        "spark_conf": {
+          "spark.databricks.delta.preview.enabled": "true"
+        },
+        "azure_attributes": {
+          "first_on_demand": 1,
+          "availability": "ON_DEMAND_AZURE",
+          "spot_bid_max_price": -1
+        },
+        "node_type_id": "Standard_D16ds_v5",
+        "driver_node_type_id": "Standard_D32s_v5",
+        "custom_tags": {
+          "PolicyName": "Job Compute"
+        },
+        "cluster_log_conf": {
+          "dbfs": {
+            "destination": "dbfs:/mnt/cluster-logs-data"
+          }
+        },
+        "enable_elastic_disk": true,
+        "init_scripts": [
+          {
+            "dbfs": {
+              "destination": "dbfs:/data/init-scripts/datamonitoring.sh"
+            }
+          },
+          {
+            "dbfs": {
+              "destination": "dbfs:/data/init-scripts/library-install.sh"
+            }
+          }
+        ],
+        "policy_id": "Personal Compute",
+        "data_security_mode": "SINGLE_USER",
+        "runtime_engine": "PHOTON",
+        "autoscale": {
+          "min_workers": 2,
+          "max_workers": 25
+        }
+      }
+    },
+    {
+      "job_cluster_key": "gold",
+      "new_cluster": {
+        "cluster_name": "",
+        "spark_version": "12.2.x-scala2.12",
+        "spark_conf": {
+          "spark.databricks.delta.preview.enabled": "true"
+        },
+        "azure_attributes": {
+          "first_on_demand": 1,
+          "availability": "ON_DEMAND_AZURE",
+          "spot_bid_max_price": -1
+        },
+        "node_type_id": "Standard_D16ds_v5",
+        "driver_node_type_id": "Standard_D32s_v5",
+        "custom_tags": {
+          "PolicyName": "Job Compute"
+        },
+        "cluster_log_conf": {
+          "dbfs": {
+            "destination": "dbfs:/mnt/cluster-logs-data"
+          }
+        },
+        "enable_elastic_disk": true,
+        "init_scripts": [
+          {
+            "dbfs": {
+              "destination": "dbfs:/data/init-scripts/datamonitoring.sh"
+            }
+          },
+          {
+            "dbfs": {
+              "destination": "dbfs:/data/init-scripts/library-install.sh"
+            }
+          }
+        ],
+        "policy_id": "Job Compute",
+        "data_security_mode": "SINGLE_USER",
+        "runtime_engine": "PHOTON",
+        "autoscale": {
+          "min_workers": 2,
+          "max_workers": 25
+        }
+      }
+    }
+  ],
+  "git_source": {
+    "git_url": "https://github.com/sureshbabuelumalai1132046/naz-ny-webapp-healthai-001",
+    "git_provider": "gitHub",
+    "git_branch": "main"
+  },
+  "format": "MULTI_TASK"
+}

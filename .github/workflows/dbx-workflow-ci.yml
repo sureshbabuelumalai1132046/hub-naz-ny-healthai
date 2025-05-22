@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0
       - name: Generate Matrix
         id: set-matrix
-        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/changed-file-matrix@changed-file-matrix-v1.1.0
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/changed-file-matrix@main
         with:
           file-pattern: ${{ inputs.workflow_definition_location }}
   dbx-workflow-ci:
@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Check for Timeout
-        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-job-check-for-timeout@dbx-job-check-for-timeout-v1.0.0
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-job-check-for-timeout@main
         with:
           job_path: ${{ matrix.changed_file }}
           setup_python: false

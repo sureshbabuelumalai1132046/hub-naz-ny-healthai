@@ -1,0 +1,28 @@
+# https://github.com/GoogleContainerTools/container-structure-test
+schemaVersion: "2.0.0"
+
+commandTests:
+  - name: "Verify jq command installed"
+    command: "which"
+    args: ["jq"]
+    expectedOutput: ["/usr/bin/jq"]
+  - name: "Verify git command installed"
+    command: "which"
+    args: ["git"]
+    expectedOutput: ["/usr/bin/git"]
+  - name: "Verify databricks command installed"
+    command: "which"
+    args: ["databricks"]
+    expectedOutput: ["/usr/local/bin/databricks"]
+  - name: "Verify python command location"
+    command: "which"
+    args: ["python"]
+    expectedOutput: ["/usr/local/bin/python"]
+  - name: "Verify python version"
+    command: "python"
+    args: ["-V"]
+    expectedOutput: ["Python 3.*"]
+  - name: "Verify python version"
+    command: "pip"
+    args: ["-V"]
+    expectedOutput: ["pip 23.*"]

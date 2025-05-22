@@ -1,0 +1,30 @@
+name: 'Databricks Cluster Policy'
+description: 'GitHub Action for adding cluster policies to a Databricks instance'
+author: 'Suresh Babu Elumalai'
+inputs:
+  dbx-instance: 
+    description: "Url for Databricks instance."
+    required: true
+  dbx-token: 
+    description: "Access token for Databricks instance."
+    required: true
+  cluster-policy-dir:
+    description: "Directory where cluster policies are located."
+    required: true
+  dry-run:
+    description: "Run without actually pushing scripts."
+    required: false
+    default: false
+  can-use:
+    description: "Takes in a list of groups or users to be added under the permissions policies as 'CAN USE' (eg DataOps-admins, sureshbabu.elumalai@tredence.com)"
+    required: false
+    default: ''
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.dbx-instance }}
+    - ${{ inputs.dbx-token }}
+    - ${{ inputs.cluster-policy-dir }} 
+    - ${{ inputs.dry-run }}
+    - ${{ inputs.can-use }}

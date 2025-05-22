@@ -1,0 +1,25 @@
+name: 'Update Databricks Job run_as User'
+description: 'Parses through a Databricks Job Config Json and updates the user that will run the job'
+inputs:
+  job-json-file-path:
+    description: 'Databricks job config json path'
+    required: true
+  run_as_user:
+    description: 'User that the job will run with'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+      - name: Update Job run_as User
+        run: |
+          job=${{inputs.job-json-file-path}}
+          if [[ $(cat "$job" | jq '.run_as') != "null" ]]; then
+            new_user_name="${{inputs.run_as_user}}"
+            echo "Updating job config with user $new_user_name"
+            cat "$job" | jq --arg new_user_name "$new_user_name" '.run_as.user_name = $new_user_name' > output.json
+            mv output.json $job
+          else
+            echo "Did not find run_as object. Continuing......"
+          fi
+        shell: bash

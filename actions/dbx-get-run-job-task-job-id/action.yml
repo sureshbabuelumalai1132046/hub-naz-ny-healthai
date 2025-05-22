@@ -1,0 +1,41 @@
+name: 'Update Job Name to ID'
+description: 'Parses through a Databricks Job Config Json and updates the job name in run job tasks to job ID'
+inputs:
+  dbx_instance_url:
+    description: 'Databricks Instance URL'
+    type: string
+    required: true
+  dbx_token:
+    description: 'Databricks token'
+    type: string
+    required: true
+  job_path:
+    description: 'Databricks job config json path'
+    type: string
+    required: true
+  setup_python:
+    description: 'Setup Python'
+    type: boolean
+    default: true
+  install_libraries:
+    description: 'Install libraries required for action to run'
+    type: boolean
+    default: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Setup Python'
+      if: "${{inputs.setup_python == 'true'}}"
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: 'Install Libraries'
+      if: "${{inputs.install_libraries == 'true'}}"
+      run: |
+        pip install pyspark
+      shell: bash
+    - name: 'Update run job task Job Name to ID'
+      run: |
+        python $GITHUB_ACTION_PATH/get_run_job_task_job_id.py --dbx_instance_url ${{inputs.dbx_instance_url}} --dbx_token ${{inputs.dbx_token}} --job-path ${{inputs.job_path}}
+      shell: bash

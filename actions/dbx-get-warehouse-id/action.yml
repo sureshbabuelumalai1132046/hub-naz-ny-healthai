@@ -1,0 +1,94 @@
+name: 'Update warehouse Name to ID'
+description: 'Parses through a Databricks Job Config Json and updated the warehouse name to ID'
+inputs:
+  databricks-hostname:
+    description: 'The Databricks url where the warehouse exists'
+    required: false
+  databricks-token:
+    description: 'The Databricks Token for Authentication'
+    required: false
+  job-json-file-path:
+    description: 'Databricks job config json path'
+    required: true
+  fail-on-missing-warehouse:
+    description: 'Fail action if warehouse is not found'
+    default: 'true'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+      - name: Install Databricks CLI v0.245.0
+        run: |
+          DATABRICKS_VERSION="0.245.0"
+          DATABRICKS_ZIP="databricks_cli_${DATABRICKS_VERSION}_linux_amd64.zip"
+          DOWNLOAD_URL="https://github.com/databricks/cli/releases/download/v${DATABRICKS_VERSION}/${DATABRICKS_ZIP}"
+
+          echo "Downloading $DOWNLOAD_URL"
+          curl -L -o $DATABRICKS_ZIP "$DOWNLOAD_URL"
+
+          # Unzip quietly and overwrite any existing files without prompt
+          unzip -o -q $DATABRICKS_ZIP
+
+          # Move and make binary executable
+          chmod +x databricks
+          sudo mv databricks /usr/local/bin/
+
+          echo "✅ Installed version:"
+          /usr/local/bin/databricks --version
+        shell: bash
+
+      - name: Set Up Databricks CLI
+        run: |
+            export PATH="$HOME/.local/share/mise/shims:$PATH"
+
+            echo "checking if input variables are set"
+            if [[ -z "${{inputs.databricks-hostname}}" ]]; then
+              echo "databricks-hostname is not set. Please set it to configure databricks cli."
+              exit 1
+            fi
+            if [[ -z "${{inputs.databricks-token}}" ]]; then
+              echo "databricks-token is not set. Please set it to configure databricks cli."
+              exit 1
+            fi
+            echo '[DEFAULT]
+                host = ${{inputs.databricks-hostname}}
+                token = ${{inputs.databricks-token}}' > ~/.databrickscfg
+            export PATH="$HOME/.local/share/mise/bin:$HOME/.local/share/mise/shims:$PATH"
+            databricks --version
+            /usr/local/bin/databricks --version
+        shell: bash
+      - name: Update Warehouse Name to ID
+        run: |
+          job=${{inputs.job-json-file-path}}
+          warehouses=$(/usr/local/bin/databricks warehouses list --output JSON | jq -r '.[] | "\(.name) \(.id)"')
+          warehouse_found=0
+          echo "warehouses: $warehouses"
+          # Iterate through each task
+          for job_task in $(seq 0 $(($(jq '.tasks | length' $job) - 1))); do
+            if jq -e ".tasks[$job_task].sql_task | has(\"warehouse_id\")" $job > /dev/null; then
+              warehouse_name=$(jq -r ".tasks[$job_task].sql_task.warehouse_id" $job)
+              echo "Existing warehouse being used in Job Config: $warehouse_name"
+              while read -r line; do
+                name=$(echo "$line" | awk '{$NF=""; print $0}' | sed 's/ *$//')
+                id=$(echo "$line" | awk '{print $NF}')
+                echo "name: $name id: $id"
+                if [[ "$name" == "$warehouse_name" ]]; then
+                  echo "warehouse $warehouse_name Found! Updating to use ID: $id."
+                  warehouse_found=1
+                  jq --argjson job_task "$job_task" --arg id "$id" '.tasks[$job_task].sql_task.warehouse_id = $id' $job > output.json &&
+                  mv output.json "$job"
+                  break
+                fi
+              done <<< "$warehouses"
+            else
+              echo "Task $job_task does not have an warehouse_id. Skipping update."
+            fi
+          done
+          if [[ $warehouse_found == 0 ]]; then
+            echo "Did not find existing warehouse. Assuming ID is defined in job json or not using an existing warehouse."
+            if [[ "${{inputs.fail-on-missing-warehouse}}" == 'true' ]]; then
+              exit 1
+            fi
+          fi
+        shell: bash

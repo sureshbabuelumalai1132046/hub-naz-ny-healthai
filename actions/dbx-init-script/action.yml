@@ -1,0 +1,33 @@
+name: 'Databricks Init Scripts'
+description: 'GitHub Action for adding init scripts to a Databricks instance'
+author: 'Sureshbabu Elumalai'
+inputs:
+  dbx-instance: 
+    description: "Url for Databricks instance."
+    required: true
+  dbx-token: 
+    description: "Access token for Databricks instance."
+    required: true
+  script-dir:
+    description: "Directory where init scripts are located."
+    required: true
+  global:
+    description: "Boolean toggle to add global init scripts. (defaults to false)"
+    required: false
+    default: false
+  dry-run:
+    description: "Run without actually pushing scripts."
+    required: false
+    default: false
+outputs:
+  init-script-path:
+    description: 'Init Script Path'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.dbx-instance }}
+    - ${{ inputs.dbx-token }}
+    - ${{ inputs.script-dir }} 
+    - ${{ inputs.global }}
+    - ${{ inputs.dry-run }}

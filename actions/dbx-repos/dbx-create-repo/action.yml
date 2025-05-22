@@ -1,0 +1,26 @@
+name: 'Databricks Create Repo'
+description: 'Creates a repository in Databricks'
+inputs:
+     databricks_host:
+          description: 'Databricks host, usually configured in repository secrets at secrets.DATABRICKS_ENDPOINT'
+          required: true
+     databricks_access_token:
+          description: 'Databricks access token, usually configured in repository secrets at secrets.DATABRICKS_ACCESS_TOKEN'
+          required: true
+     repository_url:
+          description: 'URL to the repository to be created, e.g. https://github.com/dataops/feature-store.git'
+          required: true
+     repository_path:
+          description: 'Path at which to create the repository, e.g. /Repos/integration-test/feature-store'
+          required: true
+outputs:
+     repo_id:
+          description: 'Repository ID'
+runs:
+     using: 'docker'
+     image: 'Dockerfile'
+     args:
+          - ${{ inputs.databricks_host }}
+          - ${{ inputs.databricks_access_token }}
+          - ${{ inputs.repository_url }}
+          - ${{ inputs.repository_path }}

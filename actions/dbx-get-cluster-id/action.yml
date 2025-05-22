@@ -1,0 +1,75 @@
+name: 'Update Cluster Name to ID'
+description: 'Parses through a Databricks Job Config Json and updated the cluster name to ID'
+inputs:
+  set-up-databricks-cli:
+    description: 'Set up Databricks CLI'
+    default: 'true'
+    required: false
+  databricks-hostname:
+    description: 'The Databricks url where the cluster exists'
+    required: false
+  databricks-token:
+    description: 'The Databricks Token for Authentication'
+    required: false
+  job-json-file-path:
+    description: 'Databricks job config json path'
+    required: true
+  fail-on-missing-cluster:
+    description: 'Fail action if cluster is not found'
+    default: 'true'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+      - name: Set Up Databricks CLI
+        if: "${{inputs.set-up-databricks-cli == 'true'}}"
+        run: |
+            echo "checking if input variables are set"
+            if [[ -z "${{inputs.databricks-hostname}}" ]]; then
+              echo "databricks-hostname is not set. Please set it to configure databricks cli."
+              exit 1
+            fi
+            if [[ -z "${{inputs.databricks-token}}" ]]; then
+              echo "databricks-token is not set. Please set it to configure databricks cli."
+              exit 1
+            fi
+            echo '[DEFAULT]
+                host = ${{inputs.databricks-hostname}}
+                token = ${{inputs.databricks-token}}' > ~/.databrickscfg
+            python -m pip install databricks-cli==0.17.4
+        shell: bash
+      - name: Update Cluster Policy Name to ID
+        run: |
+          job=${{inputs.job-json-file-path}}
+          clusters=$(databricks clusters list --output JSON | jq -r '.clusters[].default_tags | "\(.ClusterName) \(.ClusterId)"')
+          cluster_found=0
+          echo "Clusters: $clusters"
+          # Iterate through each task
+          for job_task in $(seq 0 $(($(jq '.tasks | length' $job) - 1))); do
+            if jq -e ".tasks[$job_task] | has(\"existing_cluster_id\")" $job > /dev/null; then
+              cluster_name=$(jq -r ".tasks[$job_task].existing_cluster_id" $job)
+              echo "Existing cluster being used in Job Config: $cluster_name"
+              while read -r line; do
+                name=$(echo "$line" | awk '{$NF=""; print $0}' | sed 's/ *$//')
+                id=$(echo "$line" | awk '{print $NF}')
+                echo "name: $name id: $id"
+                if [[ "$name" == "$cluster_name" ]]; then
+                  echo "Cluster $cluster_name Found! Updating to use ID: $id."
+                  cluster_found=1
+                  jq --argjson job_task "$job_task" --arg id "$id" '.tasks[$job_task].existing_cluster_id = $id' $job > output.json &&
+                  mv output.json "$job"
+                  break
+                fi
+              done <<< "$clusters"
+            else
+              echo "Task $job_task does not have an existing_cluster_id. Skipping update."
+            fi
+          done
+          if [[ $cluster_found == 0 ]]; then
+            echo "Did not find existing cluster. Assuming ID is defined in job json or not using an existing cluster."
+            if [[ "${{inputs.fail-on-missing-cluster}}" == 'true' ]]; then
+              exit 1
+            fi
+          fi
+        shell: bash

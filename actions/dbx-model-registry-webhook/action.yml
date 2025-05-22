@@ -1,0 +1,32 @@
+name: 'Databricks Model Registry WebHook Generator'
+description: 'GitHub Action for adding Model Registry webhooks to a Databricks instance'
+author: 'Chad Nelson'
+inputs:
+  dbx-instance: 
+    description: "Url for Databricks instance."
+    required: true
+  dbx-token: 
+    description: "Access token for Databricks instance."
+    required: true
+  webhooks-dir:
+    description: "Directory where Model Registry webhook definitions are located."
+    required: true
+  caller-authentication:
+    description: "Authentication string for the caller url specified in the webhook JSON"
+    required: true
+  dry-run:
+    description: "Run without actually pushing scripts."
+    required: false
+    default: false
+outputs:
+  webhooks-created:
+    description: 'The ids of all the webhooks that were created'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.dbx-instance }}
+    - ${{ inputs.dbx-token }}
+    - ${{ inputs.webhooks-dir }}
+    - ${{ inputs.caller-authentication }}
+    - ${{ inputs.dry-run }}
