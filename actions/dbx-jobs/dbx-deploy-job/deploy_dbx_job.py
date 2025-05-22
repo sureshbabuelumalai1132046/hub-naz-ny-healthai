@@ -176,10 +176,7 @@ if __name__ == "__main__":
                 fake_job_id += 1
             else:
                 # Utilize Job name instead
-                job_id = db_conn.deploy_job(
-                    dbx_job_config, job_name=dbx_job_config["name"]
-                )
-
+                job_id = db_conn.deploy_job(dbx_job_config)
         job_id_mapping[job_config_path] = job_id
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as github_output:
