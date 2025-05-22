@@ -54,7 +54,8 @@ class Databricks:
     def __init__(self, instance_url, token):
         self.instance_url = instance_url.rstrip('/')
         self.headers = {
-            "Authorization": f"Bearer {token}"
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
         }
 
     def list_jobs(self):
@@ -62,6 +63,39 @@ class Databricks:
         response = requests.get(url, headers=self.headers)
         response.raise_for_status()
         return [response.json()]
+
+    def deploy_job(self, job_config):
+        job_name = job_config.get("name")
+        existing_jobs = self.list_jobs()
+
+        # Check if job already exists
+        job_id = None
+        for jobs_group in existing_jobs:
+            for job in jobs_group.get("jobs", []):
+                if job["settings"]["name"] == job_name:
+                    job_id = job["job_id"]
+                    break
+
+        if job_id:
+            # Update existing job
+            url = f"{self.instance_url}/api/2.1/jobs/update"
+            payload = {
+                "job_id": job_id,
+                **job_config
+            }
+            response = requests.post(url, headers=self.headers, data=json.dumps(payload))
+            response.raise_for_status()
+            logging.info(f"Updated job: {job_name} with job_id: {job_id}")
+        else:
+            # Create new job
+            url = f"{self.instance_url}/api/2.1/jobs/create"
+            response = requests.post(url, headers=self.headers, data=json.dumps(job_config))
+            response.raise_for_status()
+            job_id = response.json().get("job_id")
+            logging.info(f"Created job: {job_name} with job_id: {job_id}")
+
+        return job_id
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
