@@ -1,7 +1,9 @@
 import argparse
 import json
+import logging
 
-logger = LM.get_logger(__name__)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO
 
 
 def get_job_id(job_config: dict, jobs_in_workspace: list) -> dict:
