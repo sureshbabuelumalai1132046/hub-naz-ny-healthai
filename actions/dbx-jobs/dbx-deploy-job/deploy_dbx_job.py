@@ -1,10 +1,11 @@
 
 import argparse
 import json
-import os
+import logging
+import requests
 
-logger = LM.get_logger(__name__)
-
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 def update_libraries(dbx_job_config, default_libraries_config):
     """
@@ -48,7 +49,19 @@ def create_job_config(job_config, default_libraries_config, env):
             update_libraries(dbx_job_config, default_libraries_config)
 
     return dbx_job_config
+    
+class Databricks:
+    def __init__(self, instance_url, token):
+        self.instance_url = instance_url.rstrip('/')
+        self.headers = {
+            "Authorization": f"Bearer {token}"
+        }
 
+    def list_jobs(self):
+        url = f"{self.instance_url}/api/2.1/jobs/list"
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        return [response.json()]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
