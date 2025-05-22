@@ -1,10 +1,10 @@
 import argparse
 import json
 import logging
+import requests
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
 
 def get_job_id(job_config: dict, jobs_in_workspace: list) -> dict:
     """
@@ -59,6 +59,18 @@ def get_job_id(job_config: dict, jobs_in_workspace: list) -> dict:
 
     return job_config
 
+class Databricks:
+    def __init__(self, instance_url, token):
+        self.instance_url = instance_url.rstrip('/')
+        self.headers = {
+            "Authorization": f"Bearer {token}"
+        }
+
+    def list_jobs(self):
+        url = f"{self.instance_url}/api/2.1/jobs/list"
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        return [response.json()]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
