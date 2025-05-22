@@ -1,0 +1,38 @@
+name: 'DBX Job Validation'
+description: 'Runs Python script to validate a successful run of a DBX job.'
+inputs:
+  dbx_endpoint:
+    description: 'DBX endpoint'
+    required: true
+  dbx_access_token:
+    description: "DBX PAT"
+    required: true
+  file_path:
+    description: "DBX job config file path"
+    required: true
+  pull_request_timestamp:
+    description: "Pull request opened timestamp"
+    required: true
+
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.8.x'
+    - name: Install Dependencies
+      run: 
+        pip install -r $GITHUB_ACTION_PATH/requirements.txt
+      shell: bash
+    - name: 'Install Libraries'
+      run: |
+        mkdir -p  ~/.pip
+        echo "[global]
+        pip install DBUtils
+      shell: bash
+    - name: Validate jobs
+      run: |
+        python $GITHUB_ACTION_PATH/validate_dbx_job.py -n ${{ inputs.dbx_endpoint }} -t ${{ inputs.dbx_access_token }} -f ${{ inputs.file_path }} -p "${{ inputs.pull_request_timestamp }}"
+      shell: bash
+      

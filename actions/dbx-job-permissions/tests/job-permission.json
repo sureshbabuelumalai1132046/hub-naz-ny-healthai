@@ -1,0 +1,24 @@
+{
+    "permissions": {
+        "can_view": {
+            "users": [],
+            "service_principal_name": [],
+            "groups": ["users"]
+        },
+        "can_manage_run": {
+            "users": [],
+            "service_principal_name": [],
+            "groups": ["admins"]
+        },
+        "can_manage": {
+            "users": ["sureshbabu.elumalai@tredence.com"],
+            "service_principal_name": [],
+            "groups": []
+        },
+        "is_owner": {
+            "users": ["sureshbabu.elumalai@tredence.co"],
+            "service_principal_name": [],
+            "groups": []
+        }
+    }
+}

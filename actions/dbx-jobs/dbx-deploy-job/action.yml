@@ -1,0 +1,59 @@
+Name: "Databricks deploy job"
+inputs:
+  dbx_instance_url:
+    description: 'Databricks Instance URL'
+    required: true
+  dbx_token:
+    description: 'Databricks token'
+    required: true
+  job_config_paths:
+    description: 'Space delimited string containing paths to the Job config'
+    required: true
+  env:
+    description: 'Target environment (if specified in config file)'
+    required: false
+    default: ""
+  default_libraries_path:
+    description: 'Path to a config containing default libraries to add if not specified in job config, not having this will assume the job defination will contain all needed information'
+    required: false
+    default: ""
+  dry_run:
+    description: 'Used to dry run, not really for use in actual use, but allows for action testing'
+    required: false
+    default: false
+  setup_python:
+    description: 'Setup Python'
+    type: boolean
+    required: false
+    default: true
+  install_libraries:
+    description: 'Install libraries required for action to run'
+    type: boolean
+    required: false
+    default: true
+outputs:
+  job_ids:
+    description: 'Returns a space delimited string of job_names and their associated job ids in the format job_name:job_id'
+    value: ${{ steps.deploy_job.outputs.job_ids }}
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Setup Python'
+      if: "${{inputs.setup_python == 'true'}}"
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: 'Install Libraries'
+      if: "${{inputs.install_libraries == 'true'}}"
+      run: |
+        pip install DBUtils
+      shell: bash
+    - name: 'Databricks Deploy Job'
+      id: deploy_job
+      run: |
+        if [[ "${{inputs.dry_run}}" == "true" ]]; then
+          python $GITHUB_ACTION_PATH/deploy_dbx_job.py --dbx_instance_url ${{inputs.dbx_instance_url}} --dbx_token ${{inputs.dbx_token}} --job_configs "${{ inputs.job_config_paths }}" --default_libraries "${{ inputs.default_libraries_path }}" --env "${{ inputs.env }}" --dry_run
+        else
+          python $GITHUB_ACTION_PATH/deploy_dbx_job.py --dbx_instance_url ${{inputs.dbx_instance_url}} --dbx_token ${{inputs.dbx_token}} --job_configs "${{ inputs.job_config_paths }}" --default_libraries "${{ inputs.default_libraries_path }}" --env "${{ inputs.env }}"
+        fi
+      shell: bash

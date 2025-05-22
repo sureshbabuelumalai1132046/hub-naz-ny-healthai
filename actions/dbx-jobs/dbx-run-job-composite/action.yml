@@ -1,0 +1,24 @@
+Name: "Databricks deploy job"
+inputs:
+  dbx_instance_url:
+    description: 'Databricks Instance URL'
+    required: true
+  dbx_token:
+    description: 'Databricks token'
+    required: true
+  job_id:
+    description: 'Job ID'
+    required: true
+outputs:
+  run_ids:
+    description: 'Run id'
+    value: ${{ steps.run-now.outputs.run_ids }}
+runs:
+  using: 'composite'
+ 
+  steps:
+    - name: Submit Run Now
+      id: run-now
+      run: |
+        python $GITHUB_ACTION_PATH/dbx_run_now.py -d ${{inputs.dbx_instance_url}} -t ${{inputs.dbx_token}} -j ${{inputs.job_id}}
+      shell: bash

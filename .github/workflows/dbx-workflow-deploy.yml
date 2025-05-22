@@ -1,0 +1,268 @@
+name: Databricks Workflow Deploy 
+on:
+  workflow_call:
+    inputs:
+      workflow_definition_location:
+        description: "Path to the workflow(s) that need to be deployed. This will only deploy file(s) that have been changed. EX:'databricks/orchestration/*.json'"
+        type: string
+        required: true
+      workflow_permissions_location:
+        description: "Path to the workflow permissions JSON. This will only deploy file(s) that have been changed. EX:'databricks/orchestration/*.json'"
+        type: string
+        required: true
+      github_environment:
+        description: "The GitHub environment that will be used to set secret values."
+        type: string
+        required: true
+      databricks_cli_version:
+        description: "Version of the python Databricks CLI to use. Defaults to '0.17.4'"
+        default: "0.17.4"
+        type: string
+        required: false
+      matrix_max_parallel:
+        description: "Max number of jobs that can deploy in parallel. Defaults to 20."
+        type: number
+        default: 20
+        required: false
+      override_cluster_policy_id:
+        description: "Allows for using cluster policy name instead of cluster policy ID. This is useful for having one config deploy to multiple workspaces. Defaults to false."
+        type: boolean
+        default: false
+        required: false
+      override_existing_cluster_id:
+        description: "Allows for using existing cluster name instead of a cluster ID"
+        type: boolean
+        default: false
+        required: false
+      override_warehouse_id:
+        description: "Allows for using warehouse name instead of a warehouse ID"
+        type: boolean
+        default: false
+        required: false
+      override_run_as_user:
+        description: "Force all jobs being deployed to be ran as secrets.DATABRICKS_RUN_AS_USER. Defaults to false."
+        type: boolean
+        default: false
+        required: false
+      override_schedule_to_paused:
+        description: 'Force all jobs being deployed to be set schedule to PAUSED. This can be useful when deploying to development environments. Defaults to false.'
+        type: boolean
+        default: false
+        required: false
+      fail-on-missing-policy:
+        description: 'Fail action if policy is not found'
+        type: string
+        default: 'true'
+        required: false
+      fail-on-missing-cluster:
+        description: 'Fail action if cluster is not found'
+        type: string
+        default: 'true'
+        required: false
+      fail-on-missing-warehouse:
+        description: 'Fail action if warehouse is not found'
+        type: string
+        default: 'true'
+        required: false
+      redeploy_all:
+        description: "Allows for redeploying all job configs located in the repo"
+        type: boolean
+        default: false
+        required: false
+    secrets:
+      DATABRICKS_URL:
+        description: "Databricks instance URL"
+        required: true
+      DATABRICKS_ACCESS_TOKEN:
+        description: "The Databricks access token required to communicate with the workspace in question"
+        required: true
+      GITHUB_ACCESS_TOKEN:
+        description: Github token for using checkout
+        required: true
+      DATABRICKS_RUN_AS_USER:
+        description: "The user the the workflows will run as. This is required when setting the `override_run_as_user` to `true`."
+        required: false
+
+jobs:
+  setup-matrix:
+    name: Setup Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ inputs.redeploy_all && steps.set-redeploy-matrix.outputs.redeploy_matrix || steps.set-matrix.outputs.matrix }}
+      delete-matrix: ${{ inputs.redeploy_all && '{"include":[]}' || steps.set-matrix.outputs.delete-matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_ACCESS_TOKEN }}
+          fetch-depth: 0
+      - name: Generate Matrix
+        if: ${{ ! inputs.redeploy_all }}
+        id: set-matrix
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/changed-file-matrix@main
+        with:
+            file-pattern: ${{ inputs.workflow_definition_location }}
+      - name: Generate Redeploy Matrix
+        if: ${{ inputs.redeploy_all }}
+        id: set-redeploy-matrix
+        run: |
+          import glob
+          import os
+          all_files = {"include": [{"changed_file": file} for file in glob.glob("${{inputs.workflow_definition_location}}", recursive=True)]}
+          print(all_files)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+            print(f'redeploy_matrix={all_files}', file=fh)
+        shell: python
+  check-empty-matrix:
+    name: Check for Emtpy Matrices
+    runs-on: ubuntu-latest
+    needs: setup-matrix
+    if: needs.setup-matrix.outputs.matrix == '{"include":[]}' && needs.setup-matrix.outputs.delete-matrix == '{"include":[]}'
+    steps:
+      - name: Fail Workflow
+        run: |
+          echo "No jobs to deploy or delete"
+          exit 1
+  deploy-dbx-workflows:
+    name: Deploy Databricks Workflows
+    needs: [setup-matrix, check-empty-matrix]
+    runs-on: ubuntu-latest
+    if: always() && needs.setup-matrix.outputs.matrix != '{"include":[]}' && needs.check-empty-matrix.result == 'skipped'
+    environment: ${{ inputs.github_environment }}
+    timeout-minutes: 15
+    env:
+      PYTHON_VERSION: 3.8
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.matrix_max_parallel }}
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix)}}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{secrets.GITHUB_ACCESS_TOKEN}}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+      - name: Set Up Databricks CLI
+        run: |
+          echo '[DEFAULT]
+            host = ${{secrets.DATABRICKS_URL }}
+            token = ${{secrets.DATABRICKS_ACCESS_TOKEN }}' > ~/.databrickscfg
+            python -m pip install databricks-cli==${{ inputs.databricks_cli_version }}
+      - name: Override run-as to service user
+        if: ${{ inputs.override_run_as_user }}
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-job-set-run-as@main
+        with:
+            job-json-file-path: ${{ matrix.changed_file }}
+            run_as_user: ${{secrets.DATABRICKS_RUN_AS_USER}}
+      - name: Override Schedule to "PAUSED" state
+        if: ${{ inputs.override_schedule_to_paused }}
+        run: |
+            job=${{toJson(matrix.changed_file)}}
+            job_pause_status=$(cat $job | jq '.. | select(.pause_status?) | .pause_status // "null"')
+            if [[ "$job_pause_status" == "" ]]; then
+              echo "Doing nothing. No pause_status found!"
+            else
+              echo "Found pause_status: $job_pause_status. Updating to PAUSED!"
+              jq 'walk(if type == "object" and has("pause_status") then .pause_status = "PAUSED" else . end)' $job > output.json &&
+              mv output.json "$job"
+            fi
+      - name: Override Cluster Policy ID
+        if: ${{ inputs.override_cluster_policy_id }}
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-get-policy-id@main
+        with:
+          set-up-databricks-cli: 'false'
+          job-json-file-path: ${{ matrix.changed_file }}
+          fail-on-missing-policy: ${{ inputs.fail-on-missing-policy }}
+      - name: Override Existing Cluster ID
+        if: ${{ inputs.override_existing_cluster_id }}
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-get-cluster-id@main
+        with:
+          set-up-databricks-cli: 'false'
+          job-json-file-path: ${{ matrix.changed_file }}
+          fail-on-missing-cluster: ${{ inputs.fail-on-missing-cluster }}
+      - name: Override Warehouse ID
+        if: ${{ inputs.override_warehouse_id }}
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-get-warehouse-id@main
+        with:
+          databricks-hostname: ${{ secrets.DATABRICKS_URL }}
+          databricks-token: ${{ secrets.DATABRICKS_ACCESS_TOKEN }}
+          job-json-file-path: ${{ matrix.changed_file }}
+          fail-on-missing-warehouse: ${{ inputs.fail-on-missing-warehouse }}
+      - name: Override Existing Run Job Task Job ID
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-get-run-job-task-job-id@main
+        with:
+         dbx_instance_url: ${{ secrets.DATABRICKS_URL }}
+         dbx_token: ${{ secrets.DATABRICKS_ACCESS_TOKEN }}
+         job_path: ${{ matrix.changed_file }}
+         setup_python: false
+         install_libraries: false
+      - name: Deploy Job
+        id: deploy-job
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-jobs/dbx-deploy-job@main
+        with:
+         dbx_instance_url: ${{ secrets.DATABRICKS_URL }}
+         dbx_token: ${{ secrets.DATABRICKS_ACCESS_TOKEN }}
+         job_config_paths: ${{ matrix.changed_file }}
+         setup_python: false
+         install_libraries: false
+      - name: Get Job ID
+        id: get-job-id
+        uses: winterjung/split@7f51d99e7cc1f147f6f99be75acf5e641930af88 #v2.1.0
+        with:
+          msg: ${{ steps.deploy-job.outputs.job_ids }}
+          separator: ':'
+      - name: Update Databricks Job Permissions
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-job-permissions@main
+        with:
+          databricks-url: ${{ secrets.DATABRICKS_URL }}
+          databricks-token: ${{ secrets.DATABRICKS_ACCESS_TOKEN }}
+          job-permissions-json: ${{inputs.workflow_permissions_location}}
+          job-id: ${{ steps.get-job-id.outputs._1 }}
+  delete-dbx-workflows:
+    name: Delete Databricks Workflows
+    needs: [setup-matrix, check-empty-matrix]
+    runs-on: ubuntu-latest
+    if: always() && needs.setup-matrix.outputs.delete-matrix != '{"include":[]}' && needs.check-empty-matrix.result == 'skipped'
+    environment: ${{ inputs.github_environment }}
+    timeout-minutes: 15
+    env:
+      PYTHON_VERSION: 3.8
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.matrix_max_parallel }}
+      matrix: ${{fromJson(needs.setup-matrix.outputs.delete-matrix)}}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{github.ref}}
+          token: "${{secrets.GITHUB_ACCESS_TOKEN}}"
+          fetch-depth: 0
+      - name: GIT commit hash
+        shell: bash
+        run: |
+          echo GITHUB_HASH=$(git rev-list -n 2 HEAD -- ${{ matrix.deleted_file }} | tail -n 1) >> $GITHUB_ENV
+      - name: Checkout hash
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.GITHUB_HASH }}
+          token: "${{secrets.GITHUB_ACCESS_TOKEN}}"
+          fetch-depth: 0
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+      - name: Delete Job
+        id: delete-job
+        uses: sureshbabuelumalai1132046/hub-naz-ny-healthai/actions/dbx-jobs/dbx-delete-job@main
+        with:
+         dbx_instance_url: ${{ secrets.DATABRICKS_URL }}
+         dbx_token: ${{ secrets.DATABRICKS_ACCESS_TOKEN }}
+         delete_job_config_path: ${{ matrix.deleted_file }}

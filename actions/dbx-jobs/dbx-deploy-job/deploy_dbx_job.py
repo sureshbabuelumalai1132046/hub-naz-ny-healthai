@@ -1,0 +1,145 @@
+
+import argparse
+import json
+import os
+
+logger = LM.get_logger(__name__)
+
+
+def update_libraries(dbx_job_config, default_libraries_config):
+    """
+    Given a databricks job configuration, adds on default libraries
+    If libraries already exist, it adds on default libraries that do not exist
+    """
+    if "libraries" not in dbx_job_config:
+        dbx_job_config["libraries"] = default_libraries_config["libraries"]
+    else:
+        # ensure that default libraries get installed before feature specific libraries
+        for library in reversed(default_libraries_config["libraries"]):
+            if library not in dbx_job_config["libraries"]:
+                dbx_job_config["libraries"] = [library] + dbx_job_config["libraries"]
+
+
+def create_job_config(job_config, default_libraries_config, env):
+    """
+    Used to modify the databricks job config to prepare it for deployment
+    Should hold all needed modifications.
+    Current modifications consist of adding default libraries
+    """
+    if "dbx_job" in job_config:
+        dbx_job_config = (
+            job_config["dbx_job"]
+            if env not in job_config["dbx_job"]
+            else job_config["dbx_job"][env]
+        )
+    else:
+        dbx_job_config = job_config
+
+    if (
+        "include_default_libraries" in job_config
+        and job_config["include_default_libraries"]
+    ):
+        if "tasks" in dbx_job_config:
+            for job_task in dbx_job_config["tasks"]:
+                logger.info(f"Adding libraries to task {job_task['task_key']}")
+                update_libraries(job_task, default_libraries_config)
+        else:
+            logger.info(f"Updating libraries for job {dbx_job_config['name']}")
+            update_libraries(dbx_job_config, default_libraries_config)
+
+    return dbx_job_config
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-d",
+        "--dbx_instance_url",
+        required=True,
+        help="URL for the databricks instance",
+    )
+    parser.add_argument(
+        "-t",
+        "--dbx_token",
+        required=True,
+        help="Personal access token for the databricks instance",
+    )
+    parser.add_argument(
+        "-j",
+        "--job_configs",
+        required=True,
+        help="Space seperated string of config file paths",
+    )
+    parser.add_argument(
+        "-l",
+        "--default_libraries",
+        required=True,
+        help="Path to a config file set with default libraries",
+    )
+    parser.add_argument(
+        "-e",
+        "--env",
+        nargs="?",
+        default="",
+        help="Target environment mapped in the config file",
+    )
+    parser.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="To run as normal without deploying, required for action testing",
+    )
+
+    args = parser.parse_args()
+
+    # Default if a library config wasn't provided, will ensure the job won't fail
+    default_libraries_config = {"libraries": []}
+    if args.default_libraries != "":
+        with open(args.default_libraries, "r") as default_libs:
+            default_libraries_config = json.loads(default_libs.read())
+
+    job_id_mapping = {}
+    db_conn = Databricks(args.dbx_instance_url, args.dbx_token)
+
+    # Need this for action integration testing
+    fake_job_id = 0
+    for job_config_path in args.job_configs.strip().split(" "):
+        logger.info(f"Starting deployment process for {job_config_path}")
+        with open(job_config_path, "r") as job_config_info:
+            job_config = json.loads(job_config_info.read())
+
+        dbx_job_config = create_job_config(
+            job_config, default_libraries_config, args.env
+        )
+
+        if args.dry_run:
+            logger.info(f"Dry run specified, not deploying jobs")
+        # If there aready are dbx job ids from a previous deployment and the env exists
+        if "dbx_job_id" in job_config and args.env in job_config["dbx_job_id"]:
+            # dry run setting is needed to do action tests
+            job_id = (
+                job_config["dbx_job_id"][args.env]
+                if args.dry_run
+                else db_conn.deploy_job(
+                    dbx_job_config, job_id=int(job_config["dbx_job_id"][args.env])
+                )
+            )
+        else:
+            if args.dry_run:
+                job_id = fake_job_id
+                fake_job_id += 1
+            else:
+                # Utilize Job name instead
+                job_id = db_conn.deploy_job(
+                    dbx_job_config, job_name=dbx_job_config["name"]
+                )
+
+        job_id_mapping[job_config_path] = job_id
+
+    with open(os.environ["GITHUB_OUTPUT"], "a") as github_output:
+        job_id_mapping_string = " ".join(
+            [
+                f"{str(file_name)}:{job_id}"
+                for file_name, job_id in job_id_mapping.items()
+            ]
+        )
+        print(f"job_ids={job_id_mapping_string}", file=github_output)

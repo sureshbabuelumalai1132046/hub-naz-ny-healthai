@@ -1,0 +1,7 @@
+# https://github.com/GoogleContainerTools/container-structure-test
+schemaVersion: "2.0.0"
+
+fileExistenceTests:
+- name: "Entrypoint script exists"
+  path: "/entrypoint.py"
+  shouldExist: true

@@ -1,0 +1,33 @@
+name: 'Databricks Submit Jobs (Composite)'
+description: 'Github Action for submiting a one-time job run to Databricks via API call'
+inputs:
+  job_run_config_path:
+    description: 'Path to job configuration file'
+    required: true
+  dbx_instance_url:
+    description: 'Databricks Instance URL'
+    required: true
+  dbx_token:
+    description: 'Databricks token'
+    required: true
+  env:
+    description: 'Target environment (if specified in config file)'
+    required: false
+    default: ""
+  params:
+    description: 'Notebook parameters for the Databricks job run'
+    required: false
+    default: ""
+  notebook_path:
+    description: 'Path to the notebook to be run'
+    required: false
+    default: ""
+  poll_for_completion:
+    description: 'Whether to poll the one-time run until complete'
+    required: false
+    default: "true"
+runs:
+  using: 'composite'
+  steps:
+    - run: python3 $GITHUB_ACTION_PATH/dbx-submit-onetime-job.py -j ${{ inputs.job_run_config_path }} -d ${{ inputs.dbx_instance_url }} -t ${{ inputs.dbx_token }} -e '${{ inputs.env }}' -p '${{ inputs.params }}' -n '${{ inputs.notebook_path }}' -c ${{ inputs.poll_for_completion }}
+      shell: bash

@@ -1,0 +1,62 @@
+name: 'Databricks Job Permissions Updater'
+description: 'GitHub Action for updating permission on Databricks Jobs'
+author: 'Chad Nelson'
+inputs:
+  databricks-url: 
+    description: "Url for Databricks workspace."
+    required: true
+  databricks-token: 
+    description: "Access token for Databricks workspace."
+    required: true
+  job-permissions-json:
+    description: "JSON file where permissions are defined."
+    required: true
+  all-jobs:
+    description: "Update permissions for all jobs in provided databricks workspace."
+    required: false
+    default: "false"
+  job-id:
+    description: "Update permissions for a single job. Input is ignored if all-jobs is set to true."
+    required: false
+    default: ''
+  dry-run:
+    description: "Run without actually updating permissions."
+    required: false
+    default: "false"
+  setup-python:
+    description: "Setup python environment. This is only needed if you are not setting up python in a previous step."
+    required: false
+    default: "true"
+runs:
+  using: 'composite'
+
+  steps:
+    - name: Setup Python
+      if: "${{inputs.setup-python == 'true'}}"
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install Dependencies
+      run: |
+        echo "Installing dependencies"
+        pip install -q --upgrade pip
+        pip install -q -r $GITHUB_ACTION_PATH/requirements.txt
+      shell: bash
+    - name: Update Permissions on All Jobs
+      if: "${{inputs.all-jobs == 'true'}}"
+      run: |
+        if [[ "${{inputs.dry-run}}" == "true" ]]; then
+          python $GITHUB_ACTION_PATH/job-permissions.py --all-jobs -p ${{inputs.job-permissions-json}} -u ${{inputs.databricks-url}} -t ${{inputs.databricks-token}} --dry-run
+        else
+          python $GITHUB_ACTION_PATH/job-permissions.py --all-jobs -p ${{inputs.job-permissions-json}} -u ${{inputs.databricks-url}} -t ${{inputs.databricks-token}}
+        fi
+      shell: bash
+    - name: Update Permissions on Provided Job ID
+      if: "${{inputs.all-jobs == 'false'}}"
+      run: |
+        if [[ "${{inputs.dry-run}}" == "true" ]]; then
+          python $GITHUB_ACTION_PATH/job-permissions.py --job-id ${{inputs.job-id}} -p ${{inputs.job-permissions-json}} -u ${{inputs.databricks-url}} -t ${{inputs.databricks-token}} --dry-run
+        else
+          python $GITHUB_ACTION_PATH/job-permissions.py --job-id ${{inputs.job-id}} -p ${{inputs.job-permissions-json}} -u ${{inputs.databricks-url}} -t ${{inputs.databricks-token}}
+        fi
+      shell: bash

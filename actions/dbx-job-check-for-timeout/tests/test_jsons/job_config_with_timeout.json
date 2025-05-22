@@ -1,0 +1,5 @@
+{
+    "name": "test_job",
+    "webhook_notifications": {},
+    "timeout_seconds": 3600
+}

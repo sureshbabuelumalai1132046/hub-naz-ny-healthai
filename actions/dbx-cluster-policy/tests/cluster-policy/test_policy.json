@@ -1,0 +1,46 @@
+{
+    "autotermination_minutes": {
+      "hidden": false,
+      "type": "fixed",
+      "value": 10
+    },
+    "custom_tags.PolicyName": {
+      "hidden": false,
+      "type": "fixed",
+      "value": "Databricks-Default"
+    },
+    "custom_tags.ResourceClass": {
+      "hidden": false,
+      "type": "fixed",
+      "value": "Serverless"
+    },
+    "spark_conf.spark.databricks.cluster.profile": {
+      "type": "fixed",
+      "value": "serverless"
+    },
+    "spark_conf.spark.databricks.io.cache.enabled": {
+      "type": "fixed",
+      "value": "true"
+    },
+    "spark_conf.spark.databricks.passthrough.enabled": {
+      "type": "fixed",
+      "value": "true"
+    },
+    "spark_conf.spark.databricks.repl.allowedLanguages": {
+      "type": "fixed",
+      "value": "python,sql"
+    },
+    "spark_conf.spark.sql.legacy.parquet.datetimeRebaseModeInRead": {
+      "type": "fixed",
+      "value": "LEGACY"
+    },
+    "spark_conf.spark.sql.legacy.parquet.datetimeRebaseModeInWrite": {
+      "type": "fixed",
+      "value": "CORRECTED"
+    },
+    "spark_version": {
+      "hidden": false,
+      "pattern": ".*-scala2.12",
+      "type": "regex"
+    }
+  }

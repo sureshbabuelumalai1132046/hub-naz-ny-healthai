@@ -1,0 +1,42 @@
+name: 'Databricks Delete Jobs'
+description: 'Github Action for deleting Databricks jobs via API call'
+inputs:
+  delete_job_config_path:
+    description: 'Path to job configuration file'
+    required: true
+  dbx_instance_url:
+    description: 'Databricks Instance URL'
+    required: true
+  dbx_token:
+    description: 'Databricks token'
+    required: true
+  env:
+    description: 'Target environment (if specified in config file)'
+    required: false
+    default: ""
+  dry_run:
+    description: 'Used to dry run, not really for use in actual use, but allows for action testing'
+    default: false
+  setup_python:
+    description: 'Setup Python'
+    type: boolean
+    default: false
+  install_libraries:
+    description: 'Install libraries required for action to run'
+    type: boolean
+    default: false
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Setup Python'
+      if: "${{inputs.setup_python == 'true'}}"
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: 'Install Libraries'
+      if: "${{inputs.install_libraries == 'true'}}"
+      run: |
+        pip install DBUtils
+      shell: bash
+    - run: python3 $GITHUB_ACTION_PATH/delete_dbx_job.py -j ${{ inputs.delete_job_config_path }} -d ${{ inputs.dbx_instance_url }} -t ${{ inputs.dbx_token }} -e '${{ inputs.env }}'
+      shell: bash
