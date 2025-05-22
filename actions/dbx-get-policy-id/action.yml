@@ -1,8 +1,9 @@
 name: 'Update Cluster Policy Name to ID'
-description: 'Parses through a Databricks Job Config JSON and updates the cluster policy name to the corresponding ID'
+description: 'Parses through a Databricks Job Config JSON and updates the cluster policy name to ID'
+
 inputs:
   set-up-databricks-cli:
-    description: 'Whether to set up Databricks CLI'
+    description: 'Set up Databricks CLI'
     default: 'true'
     required: false
   databricks-hostname:
@@ -12,7 +13,7 @@ inputs:
     description: 'The Databricks Token for Authentication'
     required: false
   job-json-file-path:
-    description: 'Databricks job config JSON file path'
+    description: 'Databricks job config JSON path'
     required: true
   fail-on-missing-policy:
     description: 'Fail action if policy is not found'
@@ -23,42 +24,28 @@ runs:
   using: 'composite'
   steps:
     - name: Set Up Databricks CLI
-      if: ${{ inputs.set-up-databricks-cli == 'true' }}
-      shell: bash
+      if: "${{ inputs.set-up-databricks-cli == 'true' }}"
       run: |
         echo "Checking if input variables are set"
-
         if [[ -z "${{ inputs.databricks-hostname }}" ]]; then
           echo "databricks-hostname is not set. Please set it to configure Databricks CLI."
           exit 1
         fi
-
         if [[ -z "${{ inputs.databricks-token }}" ]]; then
           echo "databricks-token is not set. Please set it to configure Databricks CLI."
           exit 1
         fi
-
-        echo "Installing Databricks CLI"
-        python -m pip install --upgrade pip
+        echo '[DEFAULT]
+        host = ${{ inputs.databricks-hostname }}
+        token = ${{ inputs.databricks-token }}' > ~/.databrickscfg
         python -m pip install databricks-cli==0.17.4
-
-        echo "Creating Databricks CLI config file"
-        mkdir -p ~/.databricks
-        cat <<EOF > ~/.databricks/config
-[DEFAULT]
-host = ${DATABRICKS_HOST}
-token = ${DATABRICKS_TOKEN}
-EOF
-      env:
-        DATABRICKS_HOST: ${{ inputs.databricks-hostname }}
-        DATABRICKS_TOKEN: ${{ inputs.databricks-token }}
+      shell: bash
 
     - name: Update Cluster Policy Name to ID
-      shell: bash
       run: |
-        echo "Running Python script to update cluster policy"
         if [[ "${{ inputs.fail-on-missing-policy }}" == "true" ]]; then
-          python $GITHUB_ACTION_PATH/get_policy.py --job-path "${{ inputs.job-json-file-path }}" --fail-on-missing-policy
+          python $GITHUB_ACTION_PATH/get_policy.py --job-path ${{ inputs.job-json-file-path }} --fail-on-missing-policy
         else
-          python $GITHUB_ACTION_PATH/get_policy.py --job-path "${{ inputs.job-json-file-path }}"
+          python $GITHUB_ACTION_PATH/get_policy.py --job-path ${{ inputs.job-json-file-path }}
         fi
+      shell: bash
